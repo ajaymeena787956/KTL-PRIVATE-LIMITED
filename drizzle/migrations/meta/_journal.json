@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793770341801,
+      "tag": "0000_ktl_store_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793770377086,
+      "tag": "0001_media_storage_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794107528438,
+      "tag": "0002_master_admin_content",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794107562881,
+      "tag": "0003_guard_online_paid_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794293913210,
+      "tag": "0004_lock_master_admin_email",
+      "breakpoints": true
+    }
+  ]
+}
