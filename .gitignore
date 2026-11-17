@@ -36,3 +36,6 @@ dist-ssr
 !.env.example
 node_modules
 dist
+
+# Local backup files
+*.before-category-update
