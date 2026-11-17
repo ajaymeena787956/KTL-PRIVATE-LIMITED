@@ -254,6 +254,7 @@ export type Database = {
           mrp: number | null
           name: string
           price: number
+          photo_limit: number
           quality: string | null
           short_description: string | null
           slug: string
@@ -276,6 +277,7 @@ export type Database = {
           mrp?: number | null
           name: string
           price: number
+          photo_limit?: number
           quality?: string | null
           short_description?: string | null
           slug: string
@@ -298,6 +300,7 @@ export type Database = {
           mrp?: number | null
           name?: string
           price?: number
+          photo_limit?: number
           quality?: string | null
           short_description?: string | null
           slug?: string

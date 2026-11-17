@@ -57,13 +57,14 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block space-y-1 text-sm"><span className="font-medium text-foreground">{label}</span>{children}</label>;
 }
 
-function UploadButton({ label, folder, onDone, multiple }: { label: string; folder: "products" | "store" | "categories"; onDone: (urls: string[]) => void; multiple?: boolean }) {
+function UploadButton({ label, folder, onDone, multiple, maxFiles }: { label: string; folder: "products" | "store" | "categories"; onDone: (urls: string[]) => void; multiple?: boolean; maxFiles?: number }) {
   const [busy, setBusy] = useState(false);
   return (
     <label className="inline-flex h-10 cursor-pointer items-center rounded-lg border border-input bg-card px-3 text-sm font-semibold hover:bg-accent">
       {busy ? "Uploading…" : label}
-      <input type="file" accept="image/jpeg,image/png,image/webp" hidden multiple={multiple} onChange={async (e) => {
+      <input type="file" accept="image/jpeg,image/png,image/webp" hidden multiple={multiple} disabled={busy || maxFiles === 0} onChange={async (e) => {
         const files = Array.from(e.target.files ?? []); e.target.value = ""; if (!files.length) return;
+        if (maxFiles != null && files.length > maxFiles) return err(new Error(`You can upload only ${maxFiles} more photo(s).`));
         setBusy(true);
         try { const urls: string[] = []; for (const f of files) urls.push(await upload(f, folder)); onDone(urls); toast.success("Image uploaded"); }
         catch (x) { err(x); } finally { setBusy(false); }
@@ -160,10 +161,32 @@ function OrderLine({ o }: { o: Order }) {
 }
 
 // ---------- products ----------
-type PForm = { id?: string; name: string; slug: string; category_id: string; short_description: string; description: string; specs: string; brand: string; model: string; quality: string; warranty: string; price: string; mrp: string; booking_amount: string; stock_quantity: string; images: string[]; is_active: boolean; is_featured: boolean };
-const emptyP: PForm = { name: "", slug: "", category_id: "", short_description: "", description: "", specs: "", brand: "", model: "", quality: "", warranty: "", price: "", mrp: "", booking_amount: "", stock_quantity: "0", images: [], is_active: true, is_featured: false };
+type PForm = { id?: string; name: string; slug: string; category_id: string; short_description: string; description: string; specs: string; brand: string; model: string; quality: string; warranty: string; price: string; mrp: string; booking_amount: string; stock_quantity: string; photo_limit: string; clothing_size: string; clothing_color: string; fabric: string; fit: string; shoe_size: string; shoe_color: string; shoe_material: string; images: string[]; is_active: boolean; is_featured: boolean };
+const emptyP: PForm = { name: "", slug: "", category_id: "", short_description: "", description: "", specs: "", brand: "", model: "", quality: "", warranty: "", price: "", mrp: "", booking_amount: "", stock_quantity: "0", photo_limit: "6", clothing_size: "", clothing_color: "", fabric: "", fit: "", shoe_size: "", shoe_color: "", shoe_material: "", images: [], is_active: true, is_featured: false };
+
+const CLOTHING_SPEC_LABELS = ["Size", "Color", "Fabric", "Fit"];
+const SHOE_SPEC_LABELS = ["Shoe Size", "Color", "Material"];
+
+function specValue(specifications: unknown, label: string): string {
+  return parseSpecs(specifications).find((s) => s.label.trim().toLowerCase() === label.toLowerCase())?.value ?? "";
+}
+
 function toForm(p: Product): PForm {
-  return { id: p.id, name: p.name, slug: p.slug, category_id: p.category_id ?? "", short_description: p.short_description ?? "", description: p.description ?? "", specs: parseSpecs(p.specifications).map((s) => `${s.label}: ${s.value}`).join("\n"), brand: p.brand ?? "", model: p.model ?? "", quality: p.quality ?? "", warranty: p.warranty ?? "", price: String(p.price), mrp: p.mrp != null ? String(p.mrp) : "", booking_amount: p.booking_amount != null ? String(p.booking_amount) : "", stock_quantity: String(p.stock_quantity), images: p.images, is_active: p.is_active, is_featured: p.is_featured };
+  const specs = parseSpecs(p.specifications);
+  return {
+    id: p.id, name: p.name, slug: p.slug, category_id: p.category_id ?? "",
+    short_description: p.short_description ?? "", description: p.description ?? "",
+    specs: specs.map((s) => `${s.label}: ${s.value}`).join("\n"),
+    brand: p.brand ?? "", model: p.model ?? "", quality: p.quality ?? "", warranty: p.warranty ?? "",
+    price: String(p.price), mrp: p.mrp != null ? String(p.mrp) : "",
+    booking_amount: p.booking_amount != null ? String(p.booking_amount) : "",
+    stock_quantity: String(p.stock_quantity), photo_limit: String(p.photo_limit ?? 6),
+    clothing_size: specValue(p.specifications, "Size"), clothing_color: specValue(p.specifications, "Color"),
+    fabric: specValue(p.specifications, "Fabric"), fit: specValue(p.specifications, "Fit"),
+    shoe_size: specValue(p.specifications, "Shoe Size"), shoe_color: specValue(p.specifications, "Color"),
+    shoe_material: specValue(p.specifications, "Material"),
+    images: p.images, is_active: p.is_active, is_featured: p.is_featured,
+  };
 }
 
 function Products() {
@@ -199,6 +222,13 @@ function StockRow({ p, onEdit, onPatch, onDelete }: { p: Product; onEdit: () => 
 function ProductForm({ initial, categories, onClose }: { initial: PForm; categories: Category[]; onClose: () => void }) {
   const [f, setF] = useState(initial); const [busy, setBusy] = useState(false);
   const set = (k: keyof PForm, v: unknown) => setF((s) => ({ ...s, [k]: v }));
+  const selectedCategory = categories.find((c) => c.id === f.category_id);
+  const parentCategory = selectedCategory?.parent_id ? categories.find((c) => c.id === selectedCategory.parent_id) : undefined;
+  const categoryText = [selectedCategory?.name, selectedCategory?.slug, parentCategory?.name, parentCategory?.slug].filter(Boolean).join(" ").toLowerCase();
+  const isClothing = /clothing|apparel|garment|fashion|wear/.test(categoryText);
+  const isShoes = /shoe|footwear|sneaker|boot|sandal/.test(categoryText);
+  const photoLimit = [1, 4, 5, 6].includes(Number(f.photo_limit)) ? Number(f.photo_limit) : 6;
+  const remainingPhotos = Math.max(0, photoLimit - f.images.length);
   async function save() {
     const price = Number(f.price), stock = parseInt(f.stock_quantity, 10);
     const mrp = f.mrp === "" ? null : Number(f.mrp), booking = f.booking_amount === "" ? null : Number(f.booking_amount);
@@ -208,8 +238,25 @@ function ProductForm({ initial, categories, onClose }: { initial: PForm; categor
     if (!(price >= 0) || f.price === "") return err(new Error("Enter a valid price"));
     if (!(stock >= 0)) return err(new Error("Enter a valid stock quantity"));
     if ((mrp != null && !(mrp >= 0)) || (booking != null && !(booking >= 0))) return err(new Error("Enter valid MRP / booking amount"));
-    const specifications = f.specs.split("\n").map((l) => l.split(":")).filter((a) => a.length >= 2 && a[0]!.trim()).map((a) => ({ label: a[0]!.trim(), value: a.slice(1).join(":").trim() }));
-    const row = { name: f.name.trim(), slug, category_id: f.category_id || null, short_description: f.short_description || null, description: f.description || null, specifications, brand: f.brand || null, model: f.model || null, quality: f.quality || null, warranty: f.warranty || null, price, mrp, booking_amount: booking, stock_quantity: stock, images: f.images, is_active: f.is_active, is_featured: f.is_featured };
+    const photoLimit = Number(f.photo_limit);
+    if (![1, 4, 5, 6].includes(photoLimit)) return err(new Error("Choose a photo limit of 1, 4, 5 or 6."));
+    const specificationsMap = new Map<string, { label: string; value: string }>();
+    for (const line of f.specs.split("\n")) {
+      const parts = line.split(":");
+      const label = parts.shift()?.trim() ?? "";
+      const value = parts.join(":").trim();
+      if (label && value) specificationsMap.set(label.toLowerCase(), { label, value });
+    }
+    const dedicatedSpecs: [string, string][] = [
+      ...(isClothing ? [["Size", f.clothing_size], ["Color", f.clothing_color], ["Fabric", f.fabric], ["Fit", f.fit]] : []),
+      ...(isShoes ? [["Shoe Size", f.shoe_size], ["Color", f.shoe_color], ["Material", f.shoe_material]] : []),
+    ];
+    for (const [label, value] of dedicatedSpecs) {
+      if (value.trim()) specificationsMap.set(label.toLowerCase(), { label, value: value.trim() });
+      else specificationsMap.delete(label.toLowerCase());
+    }
+    const specifications = Array.from(specificationsMap.values());
+    const row = { name: f.name.trim(), slug, category_id: f.category_id || null, short_description: f.short_description || null, description: f.description || null, specifications, brand: f.brand || null, model: f.model || null, quality: f.quality || null, warranty: f.warranty || null, price, mrp, booking_amount: booking, stock_quantity: stock, photo_limit: photoLimit, images: f.images, is_active: f.is_active, is_featured: f.is_featured };
     setBusy(true);
     const { error } = f.id ? await supabase.from("products").update(row).eq("id", f.id) : await supabase.from("products").insert(row);
     setBusy(false);
@@ -223,15 +270,42 @@ function ProductForm({ initial, categories, onClose }: { initial: PForm; categor
       <div className="grid gap-3 sm:grid-cols-2">
         {t("name", "Product name *")}{t("slug", "Web address (auto from name)")}
         <Field label="Category"><select className={`${sel} w-full`} value={f.category_id} onChange={(e) => set("category_id", e.target.value)}><option value="">— None —</option>{categories.filter((c) => !c.parent_id).map((c) => [<option key={c.id} value={c.id}>{c.name}</option>, ...categories.filter((s) => s.parent_id === c.id).map((s) => <option key={s.id} value={s.id}>— {s.name}</option>)])}</select></Field>
-        {t("brand", "Brand")}{t("model", "Model")}{t("quality", "Quality")}{t("warranty", "Warranty")}
+        {t("brand", "Brand")}{t("model", isShoes ? "Shoe Model" : "Model")}{t("quality", "Quality")}{t("warranty", "Warranty")}
         {t("price", "Price (₹) *", "number")}{t("mrp", "MRP (₹, for discount)", "number")}{t("booking_amount", "Booking amount (₹, blank = default)", "number")}{t("stock_quantity", "Stock quantity *", "number")}
       </div>
+      {isClothing && <div className="rounded-lg border border-border p-3 space-y-3">
+        <h3 className="font-semibold">Clothing Details</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {t("clothing_size", "Size")}
+          {t("clothing_color", "Color")}
+          {t("fabric", "Fabric / Material")}
+          {t("fit", "Fit")}
+        </div>
+      </div>}
+      {isShoes && <div className="rounded-lg border border-border p-3 space-y-3">
+        <h3 className="font-semibold">Shoes Details</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {t("shoe_size", "Shoe Size")}
+          {t("shoe_color", "Color")}
+          {t("shoe_material", "Material")}
+        </div>
+      </div>}
       <Field label="Short description"><Input value={f.short_description} maxLength={300} onChange={(e) => set("short_description", e.target.value)} /></Field>
       <Field label="Detailed description"><Textarea rows={5} value={f.description} onChange={(e) => set("description", e.target.value)} /></Field>
       <Field label="Specifications (one per line, Label: Value)"><Textarea rows={4} value={f.specs} placeholder={"Display: 6.7 inch\nRAM: 8 GB"} onChange={(e) => set("specs", e.target.value)} /></Field>
-      <div className="space-y-2"><p className="text-sm font-medium">Photos</p>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Photos</p>
+        <Field label="Maximum photos per product">
+          <select className={`${sel} w-full`} value={f.photo_limit} onChange={(e) => set("photo_limit", e.target.value)}>
+            <option value="1">1 Photo</option>
+            <option value="4">4 Photos</option>
+            <option value="5">5 Photos</option>
+            <option value="6">6 Photos</option>
+          </select>
+        </Field>
+        <p className="text-xs text-muted-foreground">{f.images.length} photo(s) saved · {remainingPhotos} additional photo(s) available</p>
         <div className="flex flex-wrap gap-2">{f.images.map((u, i) => <div key={u} className="relative"><img src={u} alt="" className="size-20 rounded-lg border border-border object-contain" />{i === 0 && <span className="absolute left-1 top-1 rounded bg-primary px-1 text-[10px] text-primary-foreground">Main</span>}<button className="absolute -right-1 -top-1 rounded-full bg-destructive px-1.5 text-xs text-destructive-foreground" onClick={() => set("images", f.images.filter((x) => x !== u))} aria-label="Remove photo">×</button></div>)}</div>
-        <UploadButton label="Upload photos" folder="products" multiple onDone={(urls) => set("images", [...f.images, ...urls])} />
+        <UploadButton label={remainingPhotos > 0 ? "Upload photos" : "Photo limit reached"} folder="products" multiple maxFiles={remainingPhotos} onDone={(urls) => set("images", [...f.images, ...urls])} />
       </div>
       <div className="flex flex-wrap gap-4 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={f.is_active} onChange={(e) => set("is_active", e.target.checked)} /> Published (visible on website)</label><label className="flex items-center gap-2"><input type="checkbox" checked={f.is_featured} onChange={(e) => set("is_featured", e.target.checked)} /> Featured on homepage</label></div>
       <Button size="lg" className="w-full" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save product"}</Button>

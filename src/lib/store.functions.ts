@@ -32,11 +32,16 @@ async function loadCategories(sb: ReturnType<typeof publicClient>): Promise<Cate
   const { data, error } = await sb
     .from("categories")
     .select("*")
-    .eq("is_active", true)
     .order("sort_order")
     .order("name");
   if (error) throw new Error(error.message);
-  return data ?? [];
+
+  const all = data ?? [];
+  const activeIds = new Set(all.filter((c) => c.is_active).map((c) => c.id));
+  return all.filter((c) => {
+    if (!c.is_active) return false;
+    return !c.parent_id || activeIds.has(c.parent_id);
+  });
 }
 
 async function loadSettings(sb: ReturnType<typeof publicClient>): Promise<StoreSettings | null> {
