@@ -99,10 +99,44 @@ function ProductPage() {
           <p className="font-display text-3xl font-bold">{formatINR(price)} {p.mrp && <span className="text-base text-muted-foreground line-through">{formatINR(Number(p.mrp))}</span>}</p>
           <p className="text-muted-foreground">{p.short_description}</p>
           <div className="flex flex-wrap gap-2">
-            <Button asChild variant="whatsapp">
-              <a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noopener noreferrer">
-                <Share2 className="mr-2 size-4" /> Share on WhatsApp
-              </a>
+            <Button type="button" variant="whatsapp" onClick={async () => {
+              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+
+              if (typeof navigator.share !== "function" || typeof navigator.canShare !== "function") {
+                window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+                return;
+              }
+
+              try {
+                const imageUrl = p.images?.[0];
+                if (!imageUrl) throw new Error("Product photo is not available.");
+
+                const response = await fetch(imageUrl);
+                if (!response.ok) throw new Error("Could not load product photo.");
+
+                const blob = await response.blob();
+                const extension = blob.type.split("/")[1]?.split(";")[0] || "jpg";
+                const file = new File([blob], `product.${extension}`, {
+                  type: blob.type || "image/jpeg",
+                });
+
+                if (!navigator.canShare({ files: [file] })) {
+                  window.location.href = whatsappUrl;
+                  return;
+                }
+
+                await navigator.share({
+                  files: [file],
+                  title: p.name,
+                  text: shareText,
+                });
+              } catch (error) {
+                if (error instanceof Error && error.name === "AbortError") return;
+                toast.error("Photo sharing failed. Opening WhatsApp link instead.");
+                window.location.href = whatsappUrl;
+              }
+            }}>
+              <Share2 className="mr-2 size-4" /> Share on WhatsApp
             </Button>
             <Button type="button" variant="outline" onClick={async () => {
               try {
