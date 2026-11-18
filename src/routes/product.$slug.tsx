@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Share2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProductImage } from "@/components/site/ProductCard";
@@ -19,14 +19,29 @@ export const Route = createFileRoute("/product/$slug")({
   loader: async ({ context, params }) => {
     const [, d, pay] = await Promise.all([context.queryClient.ensureQueryData(siteQuery()), context.queryClient.ensureQueryData(productQuery(params.slug)), getPaymentConfig()]);
     if (!d.product) throw notFound();
-    return { pay, name: d.product.name, desc: d.product.short_description ?? "" };
+    return { pay, product: d.product, name: d.product.name, desc: d.product.short_description ?? "" };
   },
-  head: ({ loaderData }) => ({ meta: [
-    { title: `${loaderData?.name ?? "Product"} — KTL PRIVATE LIMITED` },
-    { name: "description", content: loaderData?.desc ?? "Product details" },
-    { property: "og:title", content: loaderData?.name ?? "Product" },
-    { property: "og:description", content: loaderData?.desc ?? "Product details" },
-  ] }),
+  head: ({ loaderData, params }) => {
+    const product = loaderData?.product;
+    const productUrl = `https://ktl-private-limited.onrender.com/product/${params.slug}`;
+    const imageUrl = product?.images?.[0] ?? "";
+    return {
+      links: [{ rel: "canonical", href: productUrl }],
+      meta: [
+        { title: `${loaderData?.name ?? "Product"} — KTL PRIVATE LIMITED` },
+        { name: "description", content: loaderData?.desc ?? "Product details" },
+        { property: "og:type", content: "product" },
+        { property: "og:title", content: loaderData?.name ?? "Product" },
+        { property: "og:description", content: loaderData?.desc ?? "Product details" },
+        { property: "og:url", content: productUrl },
+        ...(imageUrl ? [{ property: "og:image", content: imageUrl }, { property: "og:image:alt", content: loaderData?.name ?? "Product" }] : []),
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: loaderData?.name ?? "Product" },
+        { name: "twitter:description", content: loaderData?.desc ?? "Product details" },
+        ...(imageUrl ? [{ name: "twitter:image", content: imageUrl }] : []),
+      ],
+    };
+  },
   component: ProductPage,
 });
 
@@ -42,6 +57,8 @@ function ProductPage() {
   const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [utr, setUtr] = useState("");
   const [busy, setBusy] = useState(false); const [ref, setRef] = useState<string | null>(null);
   const price = Number(p.price);
+  const productUrl = `https://ktl-private-limited.onrender.com/product/${p.slug}`;
+  const shareText = `${p.name}\nPrice: ${formatINR(price)}\n${productUrl}`;
   const booking = effectiveBookingAmount(price, p.booking_amount != null ? Number(p.booking_amount) : null, s ? Number(s.default_booking_amount) : 0);
   const onlineOk = pay.razorpayEnabled && s?.online_payments_enabled;
   const wa = buildWhatsAppUrl(s?.whatsapp_number, { greeting: s?.whatsapp_message, productName: p.name, price, bookingAmount: booking, orderRef: ref ?? undefined });
@@ -81,6 +98,23 @@ function ProductPage() {
           <h1 className="text-3xl font-bold">{p.name}</h1>
           <p className="font-display text-3xl font-bold">{formatINR(price)} {p.mrp && <span className="text-base text-muted-foreground line-through">{formatINR(Number(p.mrp))}</span>}</p>
           <p className="text-muted-foreground">{p.short_description}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="whatsapp">
+              <a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noopener noreferrer">
+                <Share2 className="mr-2 size-4" /> Share on WhatsApp
+              </a>
+            </Button>
+            <Button type="button" variant="outline" onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(productUrl);
+                toast.success("Product link copied!");
+              } catch {
+                toast.error("Could not copy link. Please copy the URL from your browser.");
+              }
+            }}>
+              <Copy className="mr-2 size-4" /> Copy Link
+            </Button>
+          </div>
           <dl className="grid grid-cols-2 gap-2 text-sm">
             {[["Brand", p.brand], ["Model", p.model], ["Quality", p.quality], ["Warranty", p.warranty], ["Stock", p.stock_quantity > 0 ? `${p.stock_quantity} available` : "Out of stock"]].filter(([, v]) => v).map(([k, v]) => <div key={k} className="rounded-lg bg-secondary p-2"><dt className="text-xs text-muted-foreground">{k}</dt><dd className="font-medium">{v}</dd></div>)}
           </dl>

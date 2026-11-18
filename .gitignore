@@ -39,3 +39,4 @@ dist
 
 # Local backup files
 *.before-category-update
+*.before-share-update
