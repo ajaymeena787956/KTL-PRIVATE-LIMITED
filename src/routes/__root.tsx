@@ -79,7 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#1d4ed8" },
-      { title: "KTL PRIVATE LIMITED" },
+      { title: "KTL PRIVATE SHOP" },
       { name: "description", content: "Shop electronics, home appliances, furniture and office equipment from KTL PRIVATE LIMITED." },
       { name: "author", content: "KTL PRIVATE LIMITED" },
       { property: "og:site_name", content: "KTL PRIVATE LIMITED" },
@@ -88,9 +88,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", type: "image/png", href: "/favicon.png" },
-      { rel: "apple-touch-icon", href: "/icon-192.png" },
-      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", type: "image/png", href: "/favicon.png?v=2" },
+      { rel: "apple-touch-icon", sizes: "192x192", href: "/icon-192.png?v=2" },
+      { rel: "manifest", href: "/manifest.webmanifest?v=2" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
